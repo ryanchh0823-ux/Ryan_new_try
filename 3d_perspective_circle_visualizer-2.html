@@ -1,0 +1,437 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Perspective Circle Visualizer</title>
+    <!-- Tailwind CSS for Control UI -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            user-select: none;
+        }
+        body, html {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #000000;
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+        }
+        canvas {
+            display: block;
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+        }
+        /* Custom styled slider tracks */
+        input[type=range] {
+            accent-color: #3b82f6;
+        }
+    </style>
+</head>
+<body class="bg-black text-white relative">
+
+    <!-- Animation Canvas -->
+    <canvas id="visualizerCanvas"></canvas>
+
+    <!-- Control Overlay -->
+    <div id="uiOverlay" class="absolute top-4 left-4 z-10 transition-all duration-300">
+        <!-- Toggle Button -->
+        <button id="togglePanelBtn" class="bg-neutral-900/80 backdrop-blur-md border border-neutral-800 text-white p-3 rounded-xl shadow-2xl flex items-center gap-2 hover:bg-neutral-800 transition">
+            <i data-lucide="sliders" class="w-5 h-5 text-cyan-400"></i>
+            <span class="font-medium text-sm">Visual Controls</span>
+        </button>
+
+        <!-- Settings Panel -->
+        <div id="settingsPanel" class="hidden mt-3 w-80 bg-neutral-900/90 backdrop-blur-xl border border-neutral-800 p-5 rounded-2xl shadow-2xl space-y-4">
+            <div class="flex justify-between items-center border-b border-neutral-800 pb-3">
+                <h2 class="text-sm font-semibold tracking-wide text-neutral-200 uppercase flex items-center gap-2">
+                    <i data-lucide="sparkles" class="w-4 h-4 text-yellow-400"></i> Parameters
+                </h2>
+                <div class="flex items-center gap-1">
+                    <button id="hideUiBtn" title="Hide Controls (H)" class="text-neutral-400 hover:text-white p-1 rounded hover:bg-neutral-800 transition">
+                        <i data-lucide="eye-off" class="w-4 h-4 text-cyan-400"></i>
+                    </button>
+                    <button id="closePanelBtn" class="text-neutral-400 hover:text-white p-1 rounded hover:bg-neutral-800 transition">
+                        <i data-lucide="x" class="w-4 h-4"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Spawn Rate -->
+            <div>
+                <div class="flex justify-between text-xs text-neutral-400 mb-1">
+                    <span>Spawn Density</span>
+                    <span id="densityVal" class="text-cyan-400">Medium</span>
+                </div>
+                <input type="range" id="spawnRateSlider" min="1" max="10" value="5" class="w-full h-1.5 bg-neutral-800 rounded-lg appearance-none cursor-pointer">
+            </div>
+
+            <!-- Speed Multiplier -->
+            <div>
+                <div class="flex justify-between text-xs text-neutral-400 mb-1">
+                    <span>Base Speed</span>
+                    <span id="speedVal" class="text-cyan-400">1.6x</span>
+                </div>
+                <input type="range" id="speedSlider" min="0.5" max="4" step="0.1" value="1.6" class="w-full h-1.5 bg-neutral-800 rounded-lg appearance-none cursor-pointer">
+            </div>
+                <input type="range" id="speedSlider" min="0.2" max="3" step="0.1" value="1" class="w-full h-1.5 bg-neutral-800 rounded-lg appearance-none cursor-pointer">
+            </div>
+
+            <!-- Expansion Rate -->
+            <div>
+                <div class="flex justify-between text-xs text-neutral-400 mb-1">
+                    <span>Growth Rate (Zoom)</span>
+                    <span id="growthVal" class="text-cyan-400">1.0x</span>
+                </div>
+                <input type="range" id="growthSlider" min="0.3" max="2.5" step="0.1" value="1" class="w-full h-1.5 bg-neutral-800 rounded-lg appearance-none cursor-pointer">
+            </div>
+
+            <!-- Transparency / Alpha -->
+            <div>
+                <div class="flex justify-between text-xs text-neutral-400 mb-1">
+                    <span>Opacity (Transparency)</span>
+                    <span id="opacityVal" class="text-cyan-400">0.45</span>
+                </div>
+                <input type="range" id="opacitySlider" min="0.1" max="0.9" step="0.05" value="0.45" class="w-full h-1.5 bg-neutral-800 rounded-lg appearance-none cursor-pointer">
+            </div>
+
+            <!-- Color Toggles -->
+            <div>
+                <label class="block text-xs font-medium text-neutral-400 mb-2">Active Colors</label>
+                <div class="grid grid-cols-3 gap-2 text-xs" id="colorToggles">
+                    <button data-color="red" class="color-btn flex items-center justify-center gap-1 py-1.5 rounded border border-red-500/50 bg-red-500/20 text-red-300 active font-medium">Red</button>
+                    <button data-color="green" class="color-btn flex items-center justify-center gap-1 py-1.5 rounded border border-green-500/50 bg-green-500/20 text-green-300 active font-medium">Green</button>
+                    <button data-color="blue" class="color-btn flex items-center justify-center gap-1 py-1.5 rounded border border-blue-500/50 bg-blue-500/20 text-blue-300 active font-medium">Blue</button>
+                    <button data-color="cyan" class="color-btn flex items-center justify-center gap-1 py-1.5 rounded border border-cyan-500/50 bg-cyan-500/20 text-cyan-300 active font-medium">Cyan</button>
+                    <button data-color="magenta" class="color-btn flex items-center justify-center gap-1 py-1.5 rounded border border-fuchsia-500/50 bg-fuchsia-500/20 text-fuchsia-300 active font-medium">Magenta</button>
+                    <button data-color="yellow" class="color-btn flex items-center justify-center gap-1 py-1.5 rounded border border-yellow-500/50 bg-yellow-500/20 text-yellow-300 active font-medium">Yellow</button>
+                </div>
+            </div>
+
+            <!-- Blend Mode -->
+            <div>
+                <label class="block text-xs font-medium text-neutral-400 mb-1">Color Blend Mode</label>
+                <select id="blendModeSelect" class="w-full bg-neutral-800 border border-neutral-700 rounded-lg text-xs py-1.5 px-2 text-neutral-200 focus:outline-none focus:border-blue-500">
+                    <option value="screen" selected>Screen (Glow/Vibrant)</option>
+                    <option value="lighter">Additive (Lighter)</option>
+                    <option value="source-over">Normal Alpha Blend</option>
+                </select>
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="pt-2 flex gap-2">
+                <button id="clearCanvasBtn" class="w-1/2 py-2 bg-neutral-800 hover:bg-neutral-700 text-xs rounded-lg font-medium text-neutral-300 transition">Clear Screen</button>
+                <button id="burstBtn" class="w-1/2 py-2 bg-blue-600 hover:bg-blue-500 text-xs rounded-lg font-medium text-white transition">Burst Spawn</button>
+            </div>
+
+            <!-- Hide Interface Button -->
+            <button id="hideUiFullBtn" class="w-full py-2 border border-neutral-700/60 hover:bg-neutral-800 text-xs rounded-lg font-medium text-neutral-300 hover:text-white transition flex items-center justify-center gap-1.5">
+                <i data-lucide="eye-off" class="w-3.5 h-3.5 text-cyan-400"></i> Hide Controls (Press 'H')
+            </button>
+        </div>
+    </div>
+
+    <!-- UI Hidden Hint Toast -->
+    <div id="toastHint" class="fixed bottom-6 left-1/2 -translate-x-1/2 bg-neutral-900/90 border border-neutral-800 text-neutral-300 text-xs px-4 py-2 rounded-full shadow-2xl opacity-0 pointer-events-none transition-opacity duration-500 z-20 flex items-center gap-2 backdrop-blur-md">
+        <i data-lucide="info" class="w-3.5 h-3.5 text-cyan-400"></i>
+        <span>UI Hidden — Press <kbd class="px-1.5 py-0.5 bg-neutral-800 border border-neutral-700 rounded text-[10px] text-white font-mono">H</kbd> or double-click to restore</span>
+    </div>
+
+    <script>
+        // Initialize Lucide Icons
+        lucide.createIcons();
+
+        // Canvas Setup
+        const canvas = document.getElementById('visualizerCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // Handle Responsive Canvas Sizing
+        let width = canvas.width = window.innerWidth;
+        let height = canvas.height = window.innerHeight;
+
+        window.addEventListener('resize', () => {
+            width = canvas.width = window.innerWidth;
+            height = canvas.height = window.innerHeight;
+        });
+
+        // Color Map Definitions (RGB Values)
+        const COLOR_MAP = {
+            red: { r: 255, g: 30, b: 60 },
+            blue: { r: 30, g: 120, b: 255 },
+            green: { r: 30, g: 255, b: 100 },
+            cyan: { r: 0, g: 240, b: 255 },
+            magenta: { r: 255, g: 0, b: 220 },
+            yellow: { r: 255, g: 230, b: 20 }
+        };
+
+        // Configuration State
+        const settings = {
+            spawnRate: 5,        // Spawn frequency (1-10)
+            speedMultiplier: 1.6,// Faster movement speed scalar
+            growthMultiplier: 1.2,// Expansion rate scalar
+            maxCircles: 9,       // Hard cap of max 9 circles on screen
+            globalAlpha: 0.45,   // Circle transparency base
+            blendMode: 'screen', // Canvas composite operation
+            activeColors: ['red', 'green', 'blue', 'cyan', 'magenta', 'yellow']
+        };
+
+        class PerspectiveCircle {
+            constructor(spawnX = null, spawnY = null) {
+                // Spawn randomly in the middle region of the screen unless coordinates are passed
+                const centerX = width / 2;
+                const centerY = height / 2;
+
+                // Middle spawn region box (25% width, 20% height around center)
+                const spawnWidth = width * 0.25;
+                const spawnHeight = height * 0.20;
+
+                this.x = spawnX !== null ? spawnX : centerX + (Math.random() - 0.5) * spawnWidth;
+                this.y = spawnY !== null ? spawnY : centerY + (Math.random() - 0.5) * spawnHeight;
+
+                // Perspective physics parameters
+                // Calculate horizontal drift based on distance from screen center line
+                const offsetFromCenter = (this.x - centerX) / (spawnWidth / 2);
+                this.vx = offsetFromCenter * (Math.random() * 1.2 + 0.4); 
+
+                // Initial small size (starts far away in 3D perspective)
+                this.initialRadius = Math.random() * 8 + 3;
+                this.radius = this.initialRadius;
+
+                // Speed and growth parameters (increased speed)
+                this.baseSpeedY = Math.random() * 2.5 + 2.0; 
+                this.vy = this.baseSpeedY;
+                
+                // Growth rate determines how fast it expands as it comes closer
+                this.growthRate = (Math.random() * 0.8 + 0.5);
+
+                // Select random color from currently active palette
+                const palette = settings.activeColors.length > 0 ? settings.activeColors : Object.keys(COLOR_MAP);
+                const colorKey = palette[Math.floor(Math.random() * palette.length)];
+                this.rgb = COLOR_MAP[colorKey];
+
+                // Individual alpha multiplier
+                this.alphaVariation = Math.random() * 0.3 + 0.85;
+            }
+
+            update() {
+                // Move downward towards bottom edge faster
+                this.y += this.vy * settings.speedMultiplier;
+
+                // Perspective spread: Move outward horizontally as it moves closer
+                this.x += this.vx * settings.speedMultiplier * (1 + (this.y / height));
+
+                // Accelerate downward as it gets closer
+                this.vy += 0.05 * settings.speedMultiplier;
+
+                // Grow in size gradually (simulating getting closer)
+                this.radius += this.growthRate * settings.growthMultiplier * (1 + (this.y / height) * 0.5);
+
+                // Return true if circle has moved off the bottom screen edge or sides
+                return (this.y - this.radius > height || this.x + this.radius < -100 || this.x - this.radius > width + 100);
+            }
+
+            draw(context) {
+                context.save();
+                context.beginPath();
+                context.arc(this.x, this.y, Math.max(0.1, this.radius), 0, Math.PI * 2, false);
+
+                // Construct transparent RGBA fill style
+                const alpha = settings.globalAlpha * this.alphaVariation;
+                context.fillStyle = `rgba(${this.rgb.r}, ${this.rgb.g}, ${this.rgb.b}, ${alpha})`;
+                context.fill();
+
+                // Optional subtle border highlight for better transparency definition
+                context.lineWidth = 1;
+                context.strokeStyle = `rgba(${this.rgb.r}, ${this.rgb.g}, ${this.rgb.b}, ${alpha * 0.5})`;
+                context.stroke();
+
+                context.restore();
+            }
+        }
+
+        let circles = [];
+        let frameCount = 0;
+
+        function animate() {
+            // Reset composite operation to default so black background fully erases previous frame
+            ctx.globalCompositeOperation = 'source-over';
+            ctx.fillStyle = '#000000';
+            ctx.fillRect(0, 0, width, height);
+
+            // Set visual blend mode for circle rendering
+            ctx.globalCompositeOperation = settings.blendMode;
+
+            // Spawn new circles only if current circle count is strictly below 9
+            frameCount++;
+            const spawnInterval = Math.max(1, Math.floor(10 / settings.spawnRate));
+            
+            if (circles.length < settings.maxCircles && frameCount % spawnInterval === 0) {
+                circles.push(new PerspectiveCircle());
+            }
+
+            // Update and render active circles
+            for (let i = circles.length - 1; i >= 0; i--) {
+                const circle = circles[i];
+                const isOffscreen = circle.update();
+
+                if (isOffscreen) {
+                    // Remove circle once it passes bottom screen edge
+                    circles.splice(i, 1);
+                } else {
+                    circle.draw(ctx);
+                }
+            }
+
+            requestAnimationFrame(animate);
+        }
+
+        // Start Animation
+        animate();
+
+        // UI Controls Toggle
+        const togglePanelBtn = document.getElementById('togglePanelBtn');
+        const closePanelBtn = document.getElementById('closePanelBtn');
+        const settingsPanel = document.getElementById('settingsPanel');
+        const uiOverlay = document.getElementById('uiOverlay');
+        const hideUiBtn = document.getElementById('hideUiBtn');
+        const hideUiFullBtn = document.getElementById('hideUiFullBtn');
+        const toastHint = document.getElementById('toastHint');
+
+        let isUiVisible = true;
+        let toastTimeout = null;
+
+        function showToast() {
+            toastHint.classList.remove('opacity-0');
+            if (toastTimeout) clearTimeout(toastTimeout);
+            toastTimeout = setTimeout(() => {
+                toastHint.classList.add('opacity-0');
+            }, 3500);
+        }
+
+        function toggleUiVisibility(forceState) {
+            isUiVisible = forceState !== undefined ? forceState : !isUiVisible;
+            if (isUiVisible) {
+                uiOverlay.classList.remove('hidden');
+                toastHint.classList.add('opacity-0');
+            } else {
+                uiOverlay.classList.add('hidden');
+                showToast();
+            }
+        }
+
+        togglePanelBtn.addEventListener('click', () => {
+            settingsPanel.classList.toggle('hidden');
+        });
+
+        closePanelBtn.addEventListener('click', () => {
+            settingsPanel.classList.add('hidden');
+        });
+
+        hideUiBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            toggleUiVisibility(false);
+        });
+
+        hideUiFullBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            toggleUiVisibility(false);
+        });
+
+        // Press 'H' to toggle interface visibility
+        window.addEventListener('keydown', (e) => {
+            if (e.key === 'h' || e.key === 'H') {
+                toggleUiVisibility();
+            }
+        });
+
+        // Double Click anywhere on screen to toggle interface visibility
+        window.addEventListener('dblclick', () => {
+            toggleUiVisibility();
+        });
+
+        // Click on Canvas to manually spawn circles (respecting max 9 limit)
+        canvas.addEventListener('click', (e) => {
+            if (circles.length < settings.maxCircles) {
+                circles.push(new PerspectiveCircle(e.clientX, e.clientY));
+            }
+        });
+
+        // Slider Listeners
+        const spawnRateSlider = document.getElementById('spawnRateSlider');
+        const densityVal = document.getElementById('densityVal');
+        spawnRateSlider.addEventListener('input', (e) => {
+            settings.spawnRate = parseInt(e.target.value);
+            const labels = ['Ultra Low', 'Low', 'Low-Mid', 'Mid', 'Medium', 'Mid-High', 'High', 'Dense', 'Very High', 'Max Burst'];
+            densityVal.textContent = labels[settings.spawnRate - 1];
+        });
+
+        const speedSlider = document.getElementById('speedSlider');
+        const speedVal = document.getElementById('speedVal');
+        speedSlider.addEventListener('input', (e) => {
+            settings.speedMultiplier = parseFloat(e.target.value);
+            speedVal.textContent = settings.speedMultiplier.toFixed(1) + 'x';
+        });
+
+        const growthSlider = document.getElementById('growthSlider');
+        const growthVal = document.getElementById('growthVal');
+        growthSlider.addEventListener('input', (e) => {
+            settings.growthMultiplier = parseFloat(e.target.value);
+            growthVal.textContent = settings.growthMultiplier.toFixed(1) + 'x';
+        });
+
+        const opacitySlider = document.getElementById('opacitySlider');
+        const opacityVal = document.getElementById('opacityVal');
+        opacitySlider.addEventListener('input', (e) => {
+            settings.globalAlpha = parseFloat(e.target.value);
+            opacityVal.textContent = settings.globalAlpha.toFixed(2);
+        });
+
+        // Color Toggle Logic
+        const colorBtns = document.querySelectorAll('.color-btn');
+        colorBtns.forEach(btn => {
+            btn.addEventListener('click', () => {
+                const color = btn.getAttribute('data-color');
+                btn.classList.toggle('active');
+
+                if (btn.classList.contains('active')) {
+                    btn.classList.add('bg-' + color + '-500/20');
+                    btn.style.opacity = '1';
+                    if (!settings.activeColors.includes(color)) {
+                        settings.activeColors.push(color);
+                    }
+                } else {
+                    btn.style.opacity = '0.3';
+                    settings.activeColors = settings.activeColors.filter(c => c !== color);
+                }
+            });
+        });
+
+        // Blend Mode Selector
+        const blendModeSelect = document.getElementById('blendModeSelect');
+        blendModeSelect.addEventListener('change', (e) => {
+            settings.blendMode = e.target.value;
+        });
+
+        // Clear Canvas
+        document.getElementById('clearCanvasBtn').addEventListener('click', () => {
+            circles = [];
+        });
+
+        // Burst Spawn up to max limit of 9
+        document.getElementById('burstBtn').addEventListener('click', () => {
+            while (circles.length < settings.maxCircles) {
+                circles.push(new PerspectiveCircle());
+            }
+        });
+    </script>
+</body>
+</html>
