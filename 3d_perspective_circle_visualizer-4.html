@@ -1,0 +1,518 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Perspective & Motion Visualizer</title>
+    <!-- Tailwind CSS for Control UI -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            user-select: none;
+        }
+        body, html {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #000000;
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+        }
+        canvas {
+            display: block;
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+        }
+        /* Custom styled slider tracks */
+        input[type=range] {
+            accent-color: #3b82f6;
+        }
+    </style>
+</head>
+<body class="bg-black text-white relative">
+
+    <!-- Animation Canvas -->
+    <canvas id="visualizerCanvas"></canvas>
+
+    <!-- Control Overlay -->
+    <div id="uiOverlay" class="absolute top-4 left-4 z-10 transition-all duration-300">
+        <!-- Toggle Button -->
+        <button id="togglePanelBtn" class="bg-neutral-900/80 backdrop-blur-md border border-neutral-800 text-white p-3 rounded-xl shadow-2xl flex items-center gap-2 hover:bg-neutral-800 transition">
+            <i data-lucide="sliders" class="w-5 h-5 text-cyan-400"></i>
+            <span class="font-medium text-sm">Visual Controls</span>
+        </button>
+
+        <!-- Settings Panel -->
+        <div id="settingsPanel" class="hidden mt-3 w-80 bg-neutral-900/90 backdrop-blur-xl border border-neutral-800 p-5 rounded-2xl shadow-2xl space-y-4 max-h-[85vh] overflow-y-auto">
+            <div class="flex justify-between items-center border-b border-neutral-800 pb-3">
+                <h2 class="text-sm font-semibold tracking-wide text-neutral-200 uppercase flex items-center gap-2">
+                    <i data-lucide="sparkles" class="w-4 h-4 text-yellow-400"></i> Parameters
+                </h2>
+                <div class="flex items-center gap-1">
+                    <button id="hideUiBtn" title="Hide Controls (H)" class="text-neutral-400 hover:text-white p-1 rounded hover:bg-neutral-800 transition">
+                        <i data-lucide="eye-off" class="w-4 h-4 text-cyan-400"></i>
+                    </button>
+                    <button id="closePanelBtn" class="text-neutral-400 hover:text-white p-1 rounded hover:bg-neutral-800 transition">
+                        <i data-lucide="x" class="w-4 h-4"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Visual Effect Mode Selector -->
+            <div>
+                <label class="block text-xs font-medium text-neutral-400 mb-1">Visual Effect Mode</label>
+                <select id="modeSelect" class="w-full bg-neutral-800 border border-neutral-700 rounded-lg text-xs py-2 px-2.5 text-cyan-400 font-semibold focus:outline-none focus:border-blue-500">
+                    <option value="rectangles" selected>Fast Rectangles (Left to Right)</option>
+                    <option value="circles">Perspective Circles (Downward)</option>
+                </select>
+            </div>
+
+            <!-- Spawn Rate -->
+            <div>
+                <div class="flex justify-between text-xs text-neutral-400 mb-1">
+                    <span>Spawn Density</span>
+                    <span id="densityVal" class="text-cyan-400">Medium</span>
+                </div>
+                <input type="range" id="spawnRateSlider" min="1" max="10" value="5" class="w-full h-1.5 bg-neutral-800 rounded-lg appearance-none cursor-pointer">
+            </div>
+
+            <!-- Speed Control -->
+            <div>
+                <div class="flex justify-between text-xs text-neutral-400 mb-1">
+                    <span>Movement Speed</span>
+                    <span id="speedVal" class="text-cyan-400">1.6x</span>
+                </div>
+                <input type="range" id="speedSlider" min="0.2" max="5.0" step="0.1" value="1.6" class="w-full h-1.5 bg-neutral-800 rounded-lg appearance-none cursor-pointer">
+            </div>
+
+            <!-- Rectangle Size Scale -->
+            <div>
+                <div class="flex justify-between text-xs text-neutral-400 mb-1">
+                    <span>Rectangle Size</span>
+                    <span id="rectSizeVal" class="text-cyan-400">1.8x</span>
+                </div>
+                <input type="range" id="rectSizeSlider" min="0.5" max="4.0" step="0.1" value="1.8" class="w-full h-1.5 bg-neutral-800 rounded-lg appearance-none cursor-pointer">
+            </div>
+
+            <!-- Max Shapes Limit -->
+            <div>
+                <div class="flex justify-between text-xs text-neutral-400 mb-1">
+                    <span>Max Shapes On Screen</span>
+                    <span id="maxShapesVal" class="text-cyan-400">9</span>
+                </div>
+                <input type="range" id="maxShapesSlider" min="1" max="30" value="9" class="w-full h-1.5 bg-neutral-800 rounded-lg appearance-none cursor-pointer">
+            </div>
+
+            <!-- Transparency / Alpha -->
+            <div>
+                <div class="flex justify-between text-xs text-neutral-400 mb-1">
+                    <span>Opacity (Transparency)</span>
+                    <span id="opacityVal" class="text-cyan-400">0.45</span>
+                </div>
+                <input type="range" id="opacitySlider" min="0.1" max="0.9" step="0.05" value="0.45" class="w-full h-1.5 bg-neutral-800 rounded-lg appearance-none cursor-pointer">
+            </div>
+
+            <!-- Color Toggles -->
+            <div>
+                <label class="block text-xs font-medium text-neutral-400 mb-2">Active Colors</label>
+                <div class="grid grid-cols-3 gap-2 text-xs" id="colorToggles">
+                    <button data-color="red" class="color-btn flex items-center justify-center gap-1 py-1.5 rounded border border-red-500/50 bg-red-500/20 text-red-300 active font-medium">Red</button>
+                    <button data-color="green" class="color-btn flex items-center justify-center gap-1 py-1.5 rounded border border-green-500/50 bg-green-500/20 text-green-300 active font-medium">Green</button>
+                    <button data-color="blue" class="color-btn flex items-center justify-center gap-1 py-1.5 rounded border border-blue-500/50 bg-blue-500/20 text-blue-300 active font-medium">Blue</button>
+                    <button data-color="cyan" class="color-btn flex items-center justify-center gap-1 py-1.5 rounded border border-cyan-500/50 bg-cyan-500/20 text-cyan-300 active font-medium">Cyan</button>
+                    <button data-color="magenta" class="color-btn flex items-center justify-center gap-1 py-1.5 rounded border border-fuchsia-500/50 bg-fuchsia-500/20 text-fuchsia-300 active font-medium">Magenta</button>
+                    <button data-color="yellow" class="color-btn flex items-center justify-center gap-1 py-1.5 rounded border border-yellow-500/50 bg-yellow-500/20 text-yellow-300 active font-medium">Yellow</button>
+                </div>
+            </div>
+
+            <!-- Blend Mode -->
+            <div>
+                <label class="block text-xs font-medium text-neutral-400 mb-1">Color Blend Mode</label>
+                <select id="blendModeSelect" class="w-full bg-neutral-800 border border-neutral-700 rounded-lg text-xs py-1.5 px-2 text-neutral-200 focus:outline-none focus:border-blue-500">
+                    <option value="screen" selected>Screen (Glow/Vibrant)</option>
+                    <option value="lighter">Additive (Lighter)</option>
+                    <option value="source-over">Normal Alpha Blend</option>
+                </select>
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="pt-2 flex gap-2">
+                <button id="clearCanvasBtn" class="w-1/2 py-2 bg-neutral-800 hover:bg-neutral-700 text-xs rounded-lg font-medium text-neutral-300 transition">Clear Screen</button>
+                <button id="burstBtn" class="w-1/2 py-2 bg-blue-600 hover:bg-blue-500 text-xs rounded-lg font-medium text-white transition">Burst Spawn</button>
+            </div>
+
+            <!-- Hide Interface Button -->
+            <button id="hideUiFullBtn" class="w-full py-2 border border-neutral-700/60 hover:bg-neutral-800 text-xs rounded-lg font-medium text-neutral-300 hover:text-white transition flex items-center justify-center gap-1.5">
+                <i data-lucide="eye-off" class="w-3.5 h-3.5 text-cyan-400"></i> Hide Controls (Press 'H')
+            </button>
+        </div>
+    </div>
+
+    <!-- UI Hidden Hint Toast -->
+    <div id="toastHint" class="fixed bottom-6 left-1/2 -translate-x-1/2 bg-neutral-900/90 border border-neutral-800 text-neutral-300 text-xs px-4 py-2 rounded-full shadow-2xl opacity-0 pointer-events-none transition-opacity duration-500 z-20 flex items-center gap-2 backdrop-blur-md">
+        <i data-lucide="info" class="w-3.5 h-3.5 text-cyan-400"></i>
+        <span>UI Hidden — Press <kbd class="px-1.5 py-0.5 bg-neutral-800 border border-neutral-700 rounded text-[10px] text-white font-mono">H</kbd> or double-click to restore</span>
+    </div>
+
+    <script>
+        // Initialize Lucide Icons
+        lucide.createIcons();
+
+        // Canvas Setup
+        const canvas = document.getElementById('visualizerCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // Handle Responsive Canvas Sizing
+        let width = canvas.width = window.innerWidth;
+        let height = canvas.height = window.innerHeight;
+
+        window.addEventListener('resize', () => {
+            width = canvas.width = window.innerWidth;
+            height = canvas.height = window.innerHeight;
+        });
+
+        // Color Map Definitions (RGB Values)
+        const COLOR_MAP = {
+            red: { r: 255, g: 30, b: 60 },
+            blue: { r: 30, g: 120, b: 255 },
+            green: { r: 30, g: 255, b: 100 },
+            cyan: { r: 0, g: 240, b: 255 },
+            magenta: { r: 255, g: 0, b: 220 },
+            yellow: { r: 255, g: 230, b: 20 }
+        };
+
+        // Configuration State
+        const settings = {
+            mode: 'rectangles',   // 'rectangles' or 'circles'
+            spawnRate: 5,         // Spawn frequency (1-10)
+            speedMultiplier: 1.6, // Movement speed scalar
+            rectSizeMultiplier: 1.8, // Rectangle dimension scale multiplier
+            growthMultiplier: 1.2,// Expansion rate scalar (for circles)
+            maxShapes: 9,         // Max active shapes on screen
+            globalAlpha: 0.45,    // Shape transparency base
+            blendMode: 'screen',  // Canvas composite operation
+            activeColors: ['red', 'green', 'blue', 'cyan', 'magenta', 'yellow']
+        };
+
+        class FastRectangle {
+            constructor(spawnX = null, spawnY = null) {
+                // Dimensions: Larger base sizes (before multiplier)
+                this.baseWidth = Math.random() * 140 + 80;  // Base Width: 80px - 220px
+                this.baseHeight = Math.random() * 45 + 20;  // Base Height: 20px - 65px
+
+                // Center vertical belt region (Middle 35% of screen height)
+                const centerY = height / 2;
+                const middleBandHeight = height * 0.35;
+
+                const currentWidth = this.baseWidth * settings.rectSizeMultiplier;
+                const currentHeight = this.baseHeight * settings.rectSizeMultiplier;
+
+                // Spawn completely offscreen to the left unless custom Y is provided
+                this.x = spawnX !== null ? spawnX : -currentWidth - (Math.random() * 40);
+                this.y = spawnY !== null ? spawnY - (currentHeight / 2) : centerY + (Math.random() - 0.5) * middleBandHeight - (currentHeight / 2);
+
+                // Very fast horizontal velocity
+                this.baseSpeedX = Math.random() * 18 + 14; // Base speed: 14 - 32 px/frame
+
+                // Select random color from active palette
+                const palette = settings.activeColors.length > 0 ? settings.activeColors : Object.keys(COLOR_MAP);
+                const colorKey = palette[Math.floor(Math.random() * palette.length)];
+                this.rgb = COLOR_MAP[colorKey];
+
+                // Individual alpha multiplier
+                this.alphaVariation = Math.random() * 0.3 + 0.85;
+            }
+
+            update() {
+                // Move very fast left to right across the screen
+                this.x += this.baseSpeedX * settings.speedMultiplier;
+
+                const currentWidth = this.baseWidth * settings.rectSizeMultiplier;
+                // Return true if rectangle moves completely past the right edge
+                return (this.x > width + currentWidth + 50);
+            }
+
+            draw(context) {
+                context.save();
+                
+                const alpha = settings.globalAlpha * this.alphaVariation;
+                const w = this.baseWidth * settings.rectSizeMultiplier;
+                const h = this.baseHeight * settings.rectSizeMultiplier;
+                
+                // Draw filled rectangle
+                context.fillStyle = `rgba(${this.rgb.r}, ${this.rgb.g}, ${this.rgb.b}, ${alpha})`;
+                context.fillRect(this.x, this.y, w, h);
+
+                // Draw sharp border contour
+                context.lineWidth = 1.5;
+                context.strokeStyle = `rgba(${this.rgb.r}, ${this.rgb.g}, ${this.rgb.b}, ${alpha * 0.6})`;
+                context.strokeRect(this.x, this.y, w, h);
+
+                context.restore();
+            }
+        }
+
+        class PerspectiveCircle {
+            constructor(spawnX = null, spawnY = null) {
+                const centerX = width / 2;
+                const centerY = height / 2;
+
+                const spawnWidth = width * 0.25;
+                const spawnHeight = height * 0.20;
+
+                this.x = spawnX !== null ? spawnX : centerX + (Math.random() - 0.5) * spawnWidth;
+                this.y = spawnY !== null ? spawnY : centerY + (Math.random() - 0.5) * spawnHeight;
+
+                const offsetFromCenter = (this.x - centerX) / (spawnWidth / 2);
+                this.vx = offsetFromCenter * (Math.random() * 1.2 + 0.4); 
+
+                this.initialRadius = Math.random() * 8 + 3;
+                this.radius = this.initialRadius;
+
+                this.baseSpeedY = Math.random() * 2.5 + 2.0; 
+                this.vy = this.baseSpeedY;
+                this.growthRate = (Math.random() * 0.8 + 0.5);
+
+                const palette = settings.activeColors.length > 0 ? settings.activeColors : Object.keys(COLOR_MAP);
+                const colorKey = palette[Math.floor(Math.random() * palette.length)];
+                this.rgb = COLOR_MAP[colorKey];
+
+                this.alphaVariation = Math.random() * 0.3 + 0.85;
+            }
+
+            update() {
+                this.y += this.vy * settings.speedMultiplier;
+                this.x += this.vx * settings.speedMultiplier * (1 + (this.y / height));
+                this.vy += 0.05 * settings.speedMultiplier;
+                this.radius += this.growthRate * settings.growthMultiplier * (1 + (this.y / height) * 0.5);
+
+                return (this.y - this.radius > height || this.x + this.radius < -100 || this.x - this.radius > width + 100);
+            }
+
+            draw(context) {
+                context.save();
+                context.beginPath();
+                context.arc(this.x, this.y, Math.max(0.1, this.radius), 0, Math.PI * 2, false);
+
+                const alpha = settings.globalAlpha * this.alphaVariation;
+                context.fillStyle = `rgba(${this.rgb.r}, ${this.rgb.g}, ${this.rgb.b}, ${alpha})`;
+                context.fill();
+
+                context.lineWidth = 1;
+                context.strokeStyle = `rgba(${this.rgb.r}, ${this.rgb.g}, ${this.rgb.b}, ${alpha * 0.5})`;
+                context.stroke();
+
+                context.restore();
+            }
+        }
+
+        let activeShapes = [];
+        let frameCount = 0;
+
+        function animate() {
+            // Reset composite operation to source-over so solid black erases previous frame completely
+            ctx.globalCompositeOperation = 'source-over';
+            ctx.fillStyle = '#000000';
+            ctx.fillRect(0, 0, width, height);
+
+            // Apply selected blend mode for glowing/vibrant colors
+            ctx.globalCompositeOperation = settings.blendMode;
+
+            // Spawn new shapes based on selected density rate & max limit
+            frameCount++;
+            const spawnInterval = Math.max(1, Math.floor(10 / settings.spawnRate));
+            
+            if (activeShapes.length < settings.maxShapes && frameCount % spawnInterval === 0) {
+                if (settings.mode === 'rectangles') {
+                    activeShapes.push(new FastRectangle());
+                } else {
+                    activeShapes.push(new PerspectiveCircle());
+                }
+            }
+
+            // Update and render active shapes
+            for (let i = activeShapes.length - 1; i >= 0; i--) {
+                const shape = activeShapes[i];
+                const isOffscreen = shape.update();
+
+                if (isOffscreen) {
+                    activeShapes.splice(i, 1);
+                } else {
+                    shape.draw(ctx);
+                }
+            }
+
+            requestAnimationFrame(animate);
+        }
+
+        // Start Animation Loop
+        animate();
+
+        // UI Controls Toggle Logic
+        const togglePanelBtn = document.getElementById('togglePanelBtn');
+        const closePanelBtn = document.getElementById('closePanelBtn');
+        const settingsPanel = document.getElementById('settingsPanel');
+        const uiOverlay = document.getElementById('uiOverlay');
+        const hideUiBtn = document.getElementById('hideUiBtn');
+        const hideUiFullBtn = document.getElementById('hideUiFullBtn');
+        const toastHint = document.getElementById('toastHint');
+
+        let isUiVisible = true;
+        let toastTimeout = null;
+
+        function showToast() {
+            toastHint.classList.remove('opacity-0');
+            if (toastTimeout) clearTimeout(toastTimeout);
+            toastTimeout = setTimeout(() => {
+                toastHint.classList.add('opacity-0');
+            }, 3500);
+        }
+
+        function toggleUiVisibility(forceState) {
+            isUiVisible = forceState !== undefined ? forceState : !isUiVisible;
+            if (isUiVisible) {
+                uiOverlay.classList.remove('hidden');
+                toastHint.classList.add('opacity-0');
+            } else {
+                uiOverlay.classList.add('hidden');
+                showToast();
+            }
+        }
+
+        togglePanelBtn.addEventListener('click', () => {
+            settingsPanel.classList.toggle('hidden');
+        });
+
+        closePanelBtn.addEventListener('click', () => {
+            settingsPanel.classList.add('hidden');
+        });
+
+        hideUiBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            toggleUiVisibility(false);
+        });
+
+        hideUiFullBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            toggleUiVisibility(false);
+        });
+
+        // Press 'H' to toggle interface visibility
+        window.addEventListener('keydown', (e) => {
+            if (e.key === 'h' || e.key === 'H') {
+                toggleUiVisibility();
+            }
+        });
+
+        // Double Click anywhere on screen to toggle interface visibility
+        window.addEventListener('dblclick', () => {
+            toggleUiVisibility();
+        });
+
+        // Click on Canvas to manually spawn shapes at click location
+        canvas.addEventListener('click', (e) => {
+            if (activeShapes.length < settings.maxShapes) {
+                if (settings.mode === 'rectangles') {
+                    activeShapes.push(new FastRectangle(e.clientX - 50, e.clientY));
+                } else {
+                    activeShapes.push(new PerspectiveCircle(e.clientX, e.clientY));
+                }
+            }
+        });
+
+        // Effect Mode Switcher
+        const modeSelect = document.getElementById('modeSelect');
+        modeSelect.addEventListener('change', (e) => {
+            settings.mode = e.target.value;
+            activeShapes = []; // Clear current shapes when switching modes
+        });
+
+        // Slider Listeners
+        const spawnRateSlider = document.getElementById('spawnRateSlider');
+        const densityVal = document.getElementById('densityVal');
+        spawnRateSlider.addEventListener('input', (e) => {
+            settings.spawnRate = parseInt(e.target.value);
+            const labels = ['Ultra Low', 'Low', 'Low-Mid', 'Mid', 'Medium', 'Mid-High', 'High', 'Dense', 'Very High', 'Max Burst'];
+            densityVal.textContent = labels[settings.spawnRate - 1];
+        });
+
+        const speedSlider = document.getElementById('speedSlider');
+        const speedVal = document.getElementById('speedVal');
+        speedSlider.addEventListener('input', (e) => {
+            settings.speedMultiplier = parseFloat(e.target.value);
+            speedVal.textContent = settings.speedMultiplier.toFixed(1) + 'x';
+        });
+
+        const rectSizeSlider = document.getElementById('rectSizeSlider');
+        const rectSizeVal = document.getElementById('rectSizeVal');
+        rectSizeSlider.addEventListener('input', (e) => {
+            settings.rectSizeMultiplier = parseFloat(e.target.value);
+            rectSizeVal.textContent = settings.rectSizeMultiplier.toFixed(1) + 'x';
+        });
+
+        const maxShapesSlider = document.getElementById('maxShapesSlider');
+        const maxShapesVal = document.getElementById('maxShapesVal');
+        maxShapesSlider.addEventListener('input', (e) => {
+            settings.maxShapes = parseInt(e.target.value);
+            maxShapesVal.textContent = settings.maxShapes;
+        });
+
+        const opacitySlider = document.getElementById('opacitySlider');
+        const opacityVal = document.getElementById('opacityVal');
+        opacitySlider.addEventListener('input', (e) => {
+            settings.globalAlpha = parseFloat(e.target.value);
+            opacityVal.textContent = settings.globalAlpha.toFixed(2);
+        });
+
+        // Color Toggle Logic
+        const colorBtns = document.querySelectorAll('.color-btn');
+        colorBtns.forEach(btn => {
+            btn.addEventListener('click', () => {
+                const color = btn.getAttribute('data-color');
+                btn.classList.toggle('active');
+
+                if (btn.classList.contains('active')) {
+                    btn.classList.add('bg-' + color + '-500/20');
+                    btn.style.opacity = '1';
+                    if (!settings.activeColors.includes(color)) {
+                        settings.activeColors.push(color);
+                    }
+                } else {
+                    btn.style.opacity = '0.3';
+                    settings.activeColors = settings.activeColors.filter(c => c !== color);
+                }
+            });
+        });
+
+        // Blend Mode Selector
+        const blendModeSelect = document.getElementById('blendModeSelect');
+        blendModeSelect.addEventListener('change', (e) => {
+            settings.blendMode = e.target.value;
+        });
+
+        // Clear Canvas
+        document.getElementById('clearCanvasBtn').addEventListener('click', () => {
+            activeShapes = [];
+        });
+
+        // Burst Spawn up to max shape limit
+        document.getElementById('burstBtn').addEventListener('click', () => {
+            while (activeShapes.length < settings.maxShapes) {
+                if (settings.mode === 'rectangles') {
+                    activeShapes.push(new FastRectangle());
+                } else {
+                    activeShapes.push(new PerspectiveCircle());
+                }
+            }
+        });
+    </script>
+</body>
+</html>
